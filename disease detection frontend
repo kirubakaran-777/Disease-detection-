@@ -1,0 +1,46 @@
+import React, { useState } from "react";
+import axios from "axios";
+import { Container, TextField, Button, Typography, CircularProgress } from "@mui/material";
+
+const App = () => {
+    const [patientData, setPatientData] = useState({
+        age: "",
+        blood_pressure: "",
+        cholesterol: "",
+        symptoms: ""
+    });
+
+    const [loading, setLoading] = useState(false);
+    const [result, setResult] = useState(null);
+
+    const handleChange = (e) => {
+        setPatientData({ ...patientData, [e.target.name]: e.target.value });
+    };
+
+    const handleSubmit = async () => {
+        setLoading(true);
+        try {
+            const response = await axios.post("http://127.0.0.1:8000/predict_disease", patientData);
+            setResult(`Predicted Disease: ${response.data.disease}`);
+        } catch (error) {
+            setResult("Error detecting disease");
+        }
+        setLoading(false);
+    };
+
+    return (
+        <Container maxWidth="sm" style={{ marginTop: "50px" }}>
+            <Typography variant="h4" gutterBottom>AI Disease Detection</Typography>
+            <TextField label="Age" name="age" type="number" fullWidth onChange={handleChange} margin="normal" />
+            <TextField label="Blood Pressure" name="blood_pressure" fullWidth onChange={handleChange} margin="normal" />
+            <TextField label="Cholesterol Level" name="cholesterol" fullWidth onChange={handleChange} margin="normal" />
+            <TextField label="Symptoms" name="symptoms" fullWidth onChange={handleChange} margin="normal" />
+            <Button variant="contained" color="primary" fullWidth onClick={handleSubmit} disabled={loading}>
+                {loading ? <CircularProgress size={24} /> : "Detect Disease"}
+            </Button>
+            {result && <Typography variant="h6" style={{ marginTop: "20px" }}>{result}</Typography>}
+        </Container>
+    );
+};
+
+export default App;
