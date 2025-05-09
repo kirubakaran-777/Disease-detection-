@@ -1,0 +1,60 @@
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+import pandas as pd
+import sqlite3
+import joblib
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+
+app = FastAPI()
+
+# Load dataset and train model
+data = pd.read_csv("patient_data.csv")
+X = data.drop(columns=["Disease"])
+y = data["Disease"]
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+model = RandomForestClassifier(n_estimators=100)
+model.fit(X_train, y_train)
+joblib.dump(model, "disease_model.pkl")
+
+# Database connection
+conn = sqlite3.connect("patients.db")
+cursor = conn.cursor()
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS patients (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    age INTEGER,
+    blood_pressure REAL,
+    cholesterol REAL,
+    symptoms TEXT,
+    predicted_disease TEXT
+)
+""")
+conn.commit()
+
+# Request model for patient data
+class PatientData(BaseModel):
+    age: int
+    blood_pressure: float
+    cholesterol: float
+    symptoms: str
+
+# Load trained model
+model = joblib.load("disease_model.pkl")
+
+@app.post("/predict_disease")
+def predict_disease(patient: PatientData):
+    patient_df = pd.DataFrame([patient.dict()])
+    prediction = model.predict(patient_df)[0]
+
+    # Store in database
+    cursor.execute("""
+    INSERT INTO patients (age, blood_pressure, cholesterol, symptoms, predicted_disease) 
+    VALUES (?, ?, ?, ?, ?)
+    """, (patient.age, patient.blood_pressure, patient.cholesterol, patient.symptoms, prediction))
+    conn.commit()
+
+    return {"disease": prediction}
+
+# Run server using: uvicorn backend:app --reload
